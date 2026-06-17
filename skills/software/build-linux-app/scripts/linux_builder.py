@@ -407,10 +407,10 @@ def run_cmake_build(
 
 
 def run_make(
-    build_dir: Path, target: str | None, parallel: int = 0
+    build_dir: Path, target: str | None, parallel: int = 0, make_path: str = "make"
 ) -> tuple[bool, str, list[str]]:
     """执行 Makefile 构建。"""
-    cmd = ["make"]
+    cmd = [make_path]
     if parallel > 0:
         cmd.append(f"-j{parallel}")
     if target:
@@ -511,9 +511,10 @@ def build_makefile(
     source_dir: Path,
     target: str | None,
     parallel: int,
+    make_path: str = "make",
 ) -> BuildResult:
     """Makefile 构建流程。"""
-    build_ok, build_cmd, evidence = run_make(source_dir, target, parallel)
+    build_ok, build_cmd, evidence = run_make(source_dir, target, parallel, make_path)
 
     if not build_ok:
         return BuildResult(
@@ -612,6 +613,10 @@ def main():
 
     build_dir = Path(args.build_dir) if args.build_dir else source_dir / "build"
 
+    # 检测环境获取工具路径
+    env = detect_environment(args.arch)
+    make_path = env.get("make", {}).get("path", "make") or "make"
+
     if args.build_system == "cmake":
         result = build_cmake(
             source_dir=source_dir,
@@ -630,6 +635,7 @@ def main():
             source_dir=source_dir,
             target=args.target,
             parallel=args.parallel,
+            make_path=make_path,
         )
 
     if args.json:

@@ -25,6 +25,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+# 设置标准输出编码
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # 仓库路径
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILLS_SRC = REPO_ROOT / "skills"
@@ -113,16 +125,37 @@ def _available_skills() -> list[str]:
     """获取可用技能列表。"""
     if not SKILLS_SRC.is_dir():
         return []
-    return sorted(
-        d.name
-        for d in SKILLS_SRC.iterdir()
-        if d.is_dir() and (d / "SKILL.md").exists()
-    )
+    skills = []
+    # 遍历分类目录
+    for category_dir in SKILLS_SRC.iterdir():
+        if category_dir.is_dir():
+            # 在分类目录下查找技能
+            for skill_dir in category_dir.iterdir():
+                if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
+                    skills.append(f"{category_dir.name}/{skill_dir.name}")
+    return sorted(skills)
 
 
 def _read_skill_description(skill_name: str) -> str:
     """读取技能描述。"""
-    skill_md = SKILLS_SRC / skill_name / "SKILL.md"
+    # 支持 category/skill-name 格式
+    if "/" in skill_name:
+        parts = skill_name.split("/")
+        if len(parts) == 2:
+            skill_md = SKILLS_SRC / parts[0] / parts[1] / "SKILL.md"
+        else:
+            return ""
+    else:
+        # 尝试在所有分类目录中查找
+        skill_md = None
+        for category_dir in SKILLS_SRC.iterdir():
+            if category_dir.is_dir():
+                candidate = category_dir / skill_name / "SKILL.md"
+                if candidate.is_file():
+                    skill_md = candidate
+                    break
+        if skill_md is None:
+            return ""
     if not skill_md.is_file():
         return ""
     try:

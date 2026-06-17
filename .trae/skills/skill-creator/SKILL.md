@@ -76,7 +76,7 @@ skills/{category}/{skill-name}/
 
 ### 2. 生成 SKILL.md
 
-根据模板生成技能契约
+根据 `.trae/templates/skill/SKILL.md` 模板生成技能契约
 
 ### 3. 生成主脚本
 
