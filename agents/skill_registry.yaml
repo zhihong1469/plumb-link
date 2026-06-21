@@ -40,6 +40,35 @@ skills:
     license: "MIT"
     status: "stable"
 
+  - name: git-commit
+    category: software
+    version: 1.0.0
+    description: "Git 代码提交，支持自动添加文件、生成提交信息和推送到远程仓库"
+    keywords:
+      - "git"
+      - "commit"
+      - "提交"
+      - "push"
+      - "代码"
+      - "版本控制"
+    agents:
+      - openai
+      - claude
+      - trae
+    shared_deps:
+      - tool_config
+    platforms:
+      - linux
+      - windows
+      - macos
+    required_tools:
+      - git
+    optional_tools:
+      - git-lfs
+    author: "Plumb-Link Team"
+    license: "MIT"
+    status: "stable"
+
   # ── 硬件技能 ───────────────────────────────────────────────────────────────
   - name: gpio-config
     category: hardware
@@ -165,6 +194,45 @@ skills:
     author: "Plumb-Link Team"
     license: "MIT"
     status: "design"
+
+  - name: cross-compile-build
+    category: platform
+    version: 1.0.0
+    description: "交叉编译构建技能，支持解压源码、自动检测构建系统、执行交叉编译和安装到指定位置"
+    keywords:
+      - "交叉编译"
+      - "cross-compile"
+      - "arm编译"
+      - "arm64编译"
+      - "嵌入式编译"
+      - "交叉编译构建"
+      - "arm-linux-gnueabihf"
+      - "aarch64"
+      - "riscv编译"
+      - "cmake交叉编译"
+      - "make交叉编译"
+    agents:
+      - openai
+      - claude
+      - trae
+    shared_deps:
+      - tool_config
+    platforms:
+      - linux
+      - windows
+    required_tools:
+      - cmake
+      - make
+      - tar
+      - unzip
+      - gcc
+    optional_tools:
+      - ninja
+      - autotools
+      - cargo
+    author: "Plumb-Link Team"
+    license: "MIT"
+    status: "stable"
 
   # ── 工作流技能 ─────────────────────────────────────────────────────────────
   - name: project-init

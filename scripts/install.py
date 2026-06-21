@@ -8,7 +8,8 @@
     python scripts/install.py /path/to/project --skills build-linux-app gpio-config
     python scripts/install.py /path/to/project --force              # 强制覆盖
     python scripts/install.py /path/to/project --detect            # 安装后探测工具路径
-    python scripts/install.py /path/to/project --uninstall          # 卸载
+    python scripts/install.py /path/to/project --uninstall          # 卸载全部技能
+    python scripts/install.py /path/to/project --remove build-linux-app  # 删除单个技能
     python scripts/install.py /path/to/project --status             # 查看安装状态
     python scripts/install.py --list                                # 列出可用技能
 """
@@ -42,6 +43,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILLS_SRC = REPO_ROOT / "skills"
 SHARED_SRC = REPO_ROOT / "shared"
 AGENTS_SRC = REPO_ROOT / "agents"
+RULES_SRC = REPO_ROOT / "rules"
+DESIGN_PLANNING_SRC = REPO_ROOT / "design_planning.md"
 
 # 安装元数据文件名
 META_FILENAME = ".em_skill_meta.json"
@@ -243,6 +246,55 @@ def cmd_list() -> None:
         print(f"  {s:<{max_name}}  {desc}")
 
 
+def _check_os_environment() -> tuple[str, str]:
+    """检查操作系统环境。"""
+    if sys.platform.startswith("win"):
+        return "windows", "Windows"
+    elif sys.platform.startswith("linux"):
+        return "linux", "Linux"
+    elif sys.platform.startswith("darwin"):
+        return "darwin", "macOS"
+    else:
+        return sys.platform, "Unknown"
+
+
+def _check_writable(path: Path) -> bool:
+    """检查目录是否可写。"""
+    try:
+        # 创建测试文件
+        test_file = path / ".test_write.tmp"
+        test_file.write_text("test", encoding="utf-8")
+        test_file.unlink()
+        return True
+    except OSError:
+        return False
+
+
+def _check_skill_exists_in_registry(project: Path, skill_name: str, agent_type: str) -> bool:
+    """检查技能是否已在注册表中存在。"""
+    registry_path = _skills_dir(project, agent_type) / "shared" / "skill_registry.yaml"
+    if not registry_path.is_file():
+        return False
+    
+    try:
+        content = registry_path.read_text(encoding="utf-8")
+        return f"name: {skill_name}" in content
+    except OSError:
+        return False
+
+
+def _check_skill_files(skill_path: Path) -> list[str]:
+    """检查技能文件完整性，返回缺失的文件列表。"""
+    required_files = ["SKILL.md"]
+    missing = []
+    
+    for required in required_files:
+        if not (skill_path / required).is_file():
+            missing.append(required)
+    
+    return missing
+
+
 def cmd_install(
     project: Path,
     skill_names: list[str] | None,
@@ -250,10 +302,15 @@ def cmd_install(
     agent_type: str,
 ) -> None:
     """安装技能到目标项目。"""
+    print("🔧 开始技能安装流程...\n")
+    
+    # 步骤 1：检查源技能文件完整性
+    print("步骤 1/7：检查源技能文件完整性")
     available = _available_skills()
     if not available:
-        print("错误：未在仓库中找到任何技能。", file=sys.stderr)
+        print("   ❌ 错误：未在仓库中找到任何技能。")
         sys.exit(1)
+    print(f"   ✓ 找到 {len(available)} 个可用技能")
 
     # 解析技能名称（支持 category/skill 格式）
     to_install = []
@@ -263,61 +320,123 @@ def cmd_install(
             parts = name.split("/")
             if len(parts) == 2:
                 skill_path = SKILLS_SRC / parts[0] / parts[1]
+                missing = _check_skill_files(skill_path)
+                if missing:
+                    print(f"   ❌ 技能 {name} 文件不完整，缺失: {', '.join(missing)}")
+                    sys.exit(1)
                 if (skill_path / "SKILL.md").exists():
-                    to_install.append(parts[1])  # 只保存技能名
+                    to_install.append({"name": parts[1], "category": parts[0], "path": skill_path})
                 else:
-                    print(f"错误：技能不存在：{name}", file=sys.stderr)
+                    print(f"   ❌ 技能不存在：{name}")
                     sys.exit(1)
             else:
-                print(f"错误：无效的技能名称格式：{name}", file=sys.stderr)
+                print(f"   ❌ 无效的技能名称格式：{name}")
                 sys.exit(1)
         else:
-            if name not in available:
-                print(f"错误：技能不存在：{name}", file=sys.stderr)
-                print(f"可用技能：{', '.join(available)}", file=sys.stderr)
+            # 尝试在所有分类目录中查找
+            found = False
+            for category_dir in SKILLS_SRC.iterdir():
+                if category_dir.is_dir():
+                    skill_path = category_dir / name
+                    if (skill_path / "SKILL.md").exists():
+                        missing = _check_skill_files(skill_path)
+                        if missing:
+                            print(f"   ❌ 技能 {name} 文件不完整，缺失: {', '.join(missing)}")
+                            sys.exit(1)
+                        to_install.append({"name": name, "category": category_dir.name, "path": skill_path})
+                        found = True
+                        break
+            if not found:
+                print(f"   ❌ 技能不存在：{name}")
+                print(f"   可用技能：{', '.join(available)}")
                 sys.exit(1)
-            to_install.append(name)
 
     # 如果未指定技能，安装全部
     if not to_install:
-        to_install = available
+        for skill_full_name in available:
+            parts = skill_full_name.split("/")
+            if len(parts) == 2:
+                skill_path = SKILLS_SRC / parts[0] / parts[1]
+                to_install.append({"name": parts[1], "category": parts[0], "path": skill_path})
 
+    # 步骤 2：检查目标项目位置和环境
+    print("\n步骤 2/7：检查目标项目位置和环境")
+    os_code, os_name = _check_os_environment()
+    print(f"   ✓ 操作系统：{os_name} ({os_code})")
+    print(f"   ✓ 目标项目：{project}")
+    
+    # 步骤 3：检查目标目录可写性和权限
+    print("\n步骤 3/7：检查目标目录可写性")
     dest = _skills_dir(project, agent_type)
-    dest.mkdir(parents=True, exist_ok=True)
+    dest_parent = dest.parent
+    
+    if not dest_parent.exists():
+        try:
+            dest_parent.mkdir(parents=True, exist_ok=True)
+            print(f"   ✓ 创建目录：{dest_parent}")
+        except OSError as e:
+            print(f"   ❌ 无法创建目录 {dest_parent}: {e}")
+            sys.exit(1)
+    
+    if _check_writable(dest_parent):
+        print(f"   ✓ 目录可写：{dest_parent}")
+    else:
+        print(f"   ❌ 目录不可写：{dest_parent}")
+        sys.exit(1)
 
+    # 步骤 4：检查技能是否已存在（冲突检测）
+    print("\n步骤 4/7：检查技能是否已存在（冲突检测）")
+    existing_skills = []
+    for skill in to_install:
+        skill_name = skill["name"]
+        # 检查目录是否存在
+        if (dest / skill_name).is_dir():
+            if force:
+                print(f"   ⚠️ 技能 {skill_name} 已存在，将强制覆盖")
+            else:
+                existing_skills.append(skill_name)
+        
+        # 检查注册表
+        if _check_skill_exists_in_registry(project, skill_name, agent_type):
+            print(f"   ⚠️ 技能 {skill_name} 已在注册表中")
+    
+    if existing_skills and not force:
+        print(f"   ❌ 以下技能已存在：{', '.join(existing_skills)}")
+        print("   使用 --force 参数强制覆盖")
+        sys.exit(1)
+
+    # 步骤 5：复制技能文件到目标项目
+    print("\n步骤 5/7：复制技能文件到目标项目")
     total_copied = 0
     total_skipped = 0
     failed = []
 
     # 拷贝技能目录
     for skill in to_install:
-        # 查找技能目录
-        skill_dir = None
-        for category_dir in SKILLS_SRC.iterdir():
-            if category_dir.is_dir():
-                candidate = category_dir / skill
-                if candidate.exists() and (candidate / "SKILL.md").exists():
-                    skill_dir = candidate
-                    break
+        skill_name = skill["name"]
+        skill_path = skill["path"]
         
-        if not skill_dir:
-            failed.append(skill)
-            print(f"  ✗ {skill} (未找到)")
-            continue
-        
-        dst = dest / skill
-        c, s = _copy_tree(skill_dir, dst, force)
+        dst = dest / skill_name
+        c, s = _copy_tree(skill_path, dst, force)
         total_copied += c
         total_skipped += s
+        
+        # 确保 SKILL.md 存在
+        skill_md = dst / "SKILL.md"
+        if not skill_md.is_file():
+            print(f"   ⚠️ 警告：SKILL.md 不存在，创建默认文件")
+            skill_md.write_text(f"---\nname: {skill_name}\ndescription: '未定义描述'\nversion: '1.0.0'\n---\n\n# {skill_name}\n\n此技能尚未添加详细描述。\n", encoding="utf-8")
+            total_copied += 1
+        
         status = "✓" if c > 0 else ("跳过" if s > 0 else "空")
-        print(f"  {status} {skill} ({c} 文件)")
+        print(f"   {status} {skill['category']}/{skill_name} ({c} 文件)")
 
     # 拷贝 shared 目录
     if SHARED_SRC.is_dir():
         c, s = _copy_tree(SHARED_SRC, dest / "shared", force)
         total_copied += c
         total_skipped += s
-        print(f"  {'✓' if c > 0 else '跳过'} shared ({c} 文件)")
+        print(f"   {'✓' if c > 0 else '跳过'} shared ({c} 文件)")
 
     # 拷贝 agents 目录（如果存在且需要）
     if AGENTS_SRC.exists():
@@ -330,24 +449,151 @@ def cmd_install(
             target = agents_dest / agent_file.name
             if not target.exists() or force:
                 shutil.copy2(agent_file, target)
-                print(f"  ✓ agents/{agent_file.name}")
+                print(f"   ✓ agents/{agent_file.name}")
+                total_copied += 1
 
-    # 写入 meta
+    # 拷贝 rules 目录（安全规则）
+    rules_dest = dest.parent / "rules"
+    if RULES_SRC.is_dir():
+        c, s = _copy_tree(RULES_SRC, rules_dest, force)
+        total_copied += c
+        total_skipped += s
+        print(f"   {'✓' if c > 0 else '跳过'} rules ({c} 文件)")
+    
+    # 拷贝 design_planning.md（设计规划文档）
+    if DESIGN_PLANNING_SRC.is_file():
+        design_planning_dest = dest.parent / "design_planning.md"
+        if not design_planning_dest.exists() or force:
+            shutil.copy2(DESIGN_PLANNING_SRC, design_planning_dest)
+            print(f"   ✓ design_planning.md")
+            total_copied += 1
+
+    # 步骤 6：更新技能注册表
+    print("\n步骤 6/7：更新技能注册表")
     meta = _load_meta(project, agent_type)
-    existing_skills = set(meta.get("skills", []))
-    existing_skills.update(to_install)
+    existing_skill_names = set(meta.get("skills", []))
+    new_skill_names = [s["name"] for s in to_install]
+    existing_skill_names.update(new_skill_names)
+    
     meta.update(
         {
             "source": "plumb-link",
             "version": _git_short_hash(),
             "installed_at": datetime.now(timezone.utc).isoformat(),
-            "skills": sorted(existing_skills),
+            "skills": sorted(existing_skill_names),
+            "os": os_code,
         }
     )
     _save_meta(project, meta, agent_type)
+    print(f"   ✓ 更新注册表，共 {len(existing_skill_names)} 个技能")
+
+    # 创建项目根 SKILL.md
+    print("\n创建项目根 SKILL.md")
+    project_skill_md = project / "SKILL.md"
+    if not project_skill_md.exists() or force:
+        # 按分类整理技能
+        skills_by_category = {}
+        for skill in to_install:
+            category = skill["category"]
+            if category not in skills_by_category:
+                skills_by_category[category] = []
+            skills_by_category[category].append(skill["name"])
+        
+        # 生成 SKILL.md 内容
+        skill_md_content = f"""---
+name: {project.name}
+description: "项目技能使用指南"
+version: "1.0.0"
+---
+
+# {project.name} 技能使用指南
+
+## 项目概述
+本项目使用 Plumb-Link 技能体系进行开发。
+
+## 已安装技能
+
+### 软件技能
+"""
+        for skill_name in sorted(skills_by_category.get("software", [])):
+            skill_desc = _read_skill_description(f"software/{skill_name}")
+            skill_md_content += f"- `{skill_name}`: {skill_desc}\n"
+        
+        skill_md_content += "\n### 硬件技能\n"
+        for skill_name in sorted(skills_by_category.get("hardware", [])):
+            skill_desc = _read_skill_description(f"hardware/{skill_name}")
+            skill_md_content += f"- `{skill_name}`: {skill_desc}\n"
+        
+        skill_md_content += "\n### 平台技能\n"
+        for skill_name in sorted(skills_by_category.get("platform", [])):
+            skill_desc = _read_skill_description(f"platform/{skill_name}")
+            skill_md_content += f"- `{skill_name}`: {skill_desc}\n"
+        
+        skill_md_content += "\n### 工作流技能\n"
+        for skill_name in sorted(skills_by_category.get("workflow", [])):
+            skill_desc = _read_skill_description(f"workflow/{skill_name}")
+            skill_md_content += f"- `{skill_name}`: {skill_desc}\n"
+        
+        skill_md_content += """
+## 使用规范
+
+### 1. 技能激活
+涉及敏感操作的技能需要用户手动激活：
+- 查看 `.trae/skills/[skill-name]/CONFIG.md`
+- 修改 `config.json` 中的 `security.enabled = true`
+
+### 2. 安全约束
+所有操作必须遵守 `.trae/rules/99-security-redline.md` 中的安全红线
+
+### 3. 技能调用
+大模型应优先使用已安装的技能，避免绕过技能直接执行命令
+
+## 技能注册表
+查看 `.trae/skills/shared/skill_registry.yaml` 获取完整技能列表
+
+## 配置文件
+- `.trae/settings.json`: 项目全局配置
+- `.trae/skills/[skill-name]/config.json`: 技能配置
+
+## 设计规范
+查看 `.trae/design_planning.md` 了解技能体系设计规范
+"""
+        
+        project_skill_md.write_text(skill_md_content, encoding="utf-8")
+        print(f"   ✓ 创建项目根 SKILL.md: {project_skill_md}")
+        total_copied += 1
+
+    # 步骤 7：验证加载结果
+    print("\n步骤 7/7：验证加载结果")
+    success = True
+    
+    # 验证目录创建
+    if not dest.is_dir():
+        print("   ❌ 技能目录未创建")
+        success = False
+    else:
+        print(f"   ✓ 技能目录：{dest}")
+    
+    # 验证 meta 文件
+    meta_path = _meta_path(project, agent_type)
+    if not meta_path.is_file():
+        print("   ❌ 元数据文件未创建")
+        success = False
+    else:
+        print(f"   ✓ 元数据文件：{meta_path}")
+    
+    # 验证技能文件
+    for skill in to_install:
+        skill_dst = dest / skill["name"]
+        skill_md = skill_dst / "SKILL.md"
+        if skill_dst.is_dir() and skill_md.is_file():
+            print(f"   ✓ 技能 {skill['name']} 已安装")
+        else:
+            print(f"   ❌ 技能 {skill['name']} 安装不完整")
+            success = False
 
     # 打印结果
-    print(f"\n安装完成：{total_copied} 文件已拷贝，{total_skipped} 文件已跳过。")
+    print(f"\n{'✓' if success else '✗'} 安装完成：{total_copied} 文件已拷贝，{total_skipped} 文件已跳过。")
     print(f"目标目录：{dest}")
     
     if failed:
@@ -355,6 +601,75 @@ def cmd_install(
     
     if total_skipped > 0 and not force:
         print("提示：使用 --force 可覆盖已有文件。")
+
+
+def cmd_remove(project: Path, skill_names: list[str], agent_type: str) -> None:
+    """删除指定的已安装技能。"""
+    dest = _skills_dir(project, agent_type)
+    meta = _load_meta(project, agent_type)
+
+    if not meta:
+        print("错误：未找到安装记录。无法执行删除操作。", file=sys.stderr)
+        return
+
+    installed_skills = set(meta.get("skills", []))
+    
+    # 验证要删除的技能是否已安装
+    valid_skills = []
+    invalid_skills = []
+    for name in skill_names:
+        # 支持 category/skill-name 格式，提取技能名
+        skill_name = name.split("/")[-1]  # 取最后一部分作为技能名
+        if skill_name in installed_skills:
+            valid_skills.append(skill_name)
+        else:
+            invalid_skills.append(name)
+    
+    if invalid_skills:
+        print(f"警告：以下技能未安装或不存在：{', '.join(invalid_skills)}", file=sys.stderr)
+    
+    if not valid_skills:
+        print("没有可删除的技能。")
+        return
+
+    # 执行删除
+    removed = 0
+    for skill in valid_skills:
+        skill_dir = dest / skill
+        if skill_dir.is_dir():
+            shutil.rmtree(skill_dir)
+            print(f"  ✓ 已删除 {skill}")
+            removed += 1
+        else:
+            print(f"  ✗ {skill} (目录不存在)")
+
+    # 更新 meta 文件
+    remaining_skills = installed_skills - set(valid_skills)
+    meta["skills"] = sorted(remaining_skills)
+    _save_meta(project, meta, agent_type)
+
+    print(f"\n删除完成：已成功删除 {removed} 个技能。")
+
+    # 如果没有剩余技能，清理目录
+    if not remaining_skills:
+        # 删除 shared
+        shared_dir = dest / "shared"
+        if shared_dir.is_dir():
+            shutil.rmtree(shared_dir)
+            print("  ✓ 已删除 shared")
+        
+        # 删除 meta 文件
+        mp = _meta_path(project, agent_type)
+        if mp.is_file():
+            mp.unlink()
+        
+        # 如果 skills 目录为空，也删除
+        if dest.is_dir() and not any(dest.iterdir()):
+            dest.rmdir()
+            # 尝试删除 .claude 或 .trae 目录
+            agent_dir = project / agent_type
+            if agent_dir.is_dir() and not any(agent_dir.iterdir()):
+                agent_dir.rmdir()
 
 
 def cmd_uninstall(project: Path, agent_type: str) -> None:
@@ -493,6 +808,12 @@ def main():
         help="卸载已安装的技能",
     )
     parser.add_argument(
+        "--remove",
+        nargs="+",
+        metavar="SKILL",
+        help="删除指定的已安装技能（支持多个技能）",
+    )
+    parser.add_argument(
         "--list",
         action="store_true",
         dest="list_skills",
@@ -533,6 +854,10 @@ def main():
 
     if args.uninstall:
         cmd_uninstall(project, args.agent)
+        return
+
+    if args.remove:
+        cmd_remove(project, args.remove, args.agent)
         return
 
     if args.status:

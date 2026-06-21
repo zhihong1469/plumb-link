@@ -1,0 +1,37 @@
+interface:
+  display_name: "Git 提交"
+  short_description: "执行 Git 代码提交和推送"
+  default_prompt: |
+    使用 git-commit 技能完成代码提交任务。
+    支持：自动添加文件、提交信息、推送到远程。
+
+intent_keywords:
+  - "git"
+  - "commit"
+  - "提交"
+  - "push"
+  - "代码"
+  - "版本控制"
+
+file_patterns:
+  - "*.py"
+  - "*.md"
+  - "*.yaml"
+  - "*.yml"
+  - "*.json"
+
+platforms:
+  - linux
+  - windows
+  - macos
+
+required_tools:
+  - git
+
+optional_tools:
+  - git-lfs
+
+handoff:
+  on_success:
+    - deploy-release
+  on_failure: []

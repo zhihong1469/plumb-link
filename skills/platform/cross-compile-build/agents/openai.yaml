@@ -1,0 +1,75 @@
+interface:
+  display_name: "交叉编译构建"
+  short_description: "交叉编译嵌入式项目到 ARM/RISC-V 等目标平台"
+  default_prompt: |
+    使用 cross-compile-build 技能进行交叉编译任务。
+
+    典型任务场景：
+    1. 解压并编译 ARM/RISC-V 源码包
+    2. 交叉编译库或应用程序到嵌入式目标
+    3. 配置交叉编译工具链并构建项目
+    4. 安装交叉编译产物到目标文件系统
+
+intent_keywords:
+  - "交叉编译"
+  - "cross-compile"
+  - "arm编译"
+  - "arm64编译"
+  - "嵌入式编译"
+  - "目标板编译"
+  - "交叉编译构建"
+  - "arm-linux-gnueabihf"
+  - "aarch64"
+  - "riscv编译"
+  - "cmake交叉编译"
+  - "make交叉编译"
+  - "toolchain"
+  - "交叉工具链"
+
+file_patterns:
+  - "CMakeLists.txt"
+  - "Makefile"
+  - "*.cmake"
+  - "configure"
+  - "toolchain.cmake"
+  - "*.tar.gz"
+  - "*.zip"
+
+platforms:
+  - linux
+  - windows
+
+required_tools:
+  - cmake
+  - make
+  - tar
+  - unzip
+  - gcc
+
+optional_tools:
+  - ninja
+  - autotools
+  - cargo
+
+handoff:
+  on_success:
+    - 检查编译产物
+    - 验证安装结果
+    - 清理临时文件
+  on_failure:
+    - build_error: 分析编译错误
+    - toolchain_missing: 提示安装工具链
+    - configuration_error: 检查 CMakeLists.txt
+
+examples:
+  - description: "编译 ARMv7 项目"
+    command: "python cross_compile.py -s libfoo.tar.gz -o build -i /opt/rootfs -t arm-linux-gnueabihf-"
+
+  - description: "使用预设工具链编译"
+    command: "python cross_compile.py -s ./mylib -o build -i /opt/install -tp armv7"
+
+  - description: "检测构建系统"
+    command: "python cross_compile.py -s /path/to/project --detect-only"
+
+  - description: "自定义 CMake 参数"
+    command: "python cross_compile.py -s project -o build -i /opt -t aarch64-linux-gnu- -ec \"-DENABLE_TESTS=ON\""

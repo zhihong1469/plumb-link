@@ -107,6 +107,41 @@ python3 scripts/install.py /path/to/project --skills skill-name1 skill-name2
 6. **更新注册表**：将技能信息添加到 `agents/skill_registry.yaml`
 7. **返回结果**：报告生成结果
 
+---
+
+## 四、技能删除引导
+
+当用户希望删除技能时，引导其使用 plumb-link 根目录的技能删除器。
+
+### 4.1 触发关键词
+
+- "删除一个技能"
+- "移除一个技能"
+- "我想删除XXX技能"
+- "移除XXX技能"
+
+### 4.2 删除流程
+
+当用户表达技能删除需求时：
+
+1. **读取入口**：AI 读取 `.trae/SKILL.md`（技能生成器入口）
+2. **验证请求**：确认删除请求的有效性
+3. **检查技能存在性**：检查技能是否存在于 `skills/` 目录
+4. **检查依赖关系**：检查是否有其他技能依赖此技能（参考 `.trae/rules/05-skill-removal.md`）
+5. **检查核心技能保护**：检查是否为核心技能
+6. **删除技能目录**：删除 `skills/{category}/{skill-name}/` 目录
+7. **更新注册表**：从 `agents/skill_registry.yaml` 中删除技能记录
+8. **返回结果**：报告删除结果
+
+### 4.3 删除安全机制
+
+| 安全机制 | 说明 |
+|---------|------|
+| **依赖检查** | 检查是否有其他技能依赖此技能 |
+| **核心技能保护** | 核心技能（如 build-linux-app）受保护无法删除 |
+| **完整清理** | 同时删除技能目录和注册表记录 |
+| **确认删除意图** | 与用户确认删除意图 |
+
 ### 3.3 技能分类体系
 
 | 大类 | 小类示例 | 适用场景 |
@@ -146,9 +181,44 @@ python3 scripts/install.py /path/to/project --skills skill-name1 skill-name2
 3. 添加参考文档
 ```
 
+### 4.4 示例交互
+
+```
+👤 我想删除 old-skill 技能
+🤖 正在验证删除请求...
+
+验证结果：
+- 技能名称：old-skill
+- 分类：software
+- 路径：skills/software/old-skill/
+
+检查依赖关系：
+- 无其他技能依赖此技能
+
+开始删除...
+
+✓ 已删除技能目录：skills/software/old-skill/
+✓ 已更新注册表：agents/skill_registry.yaml
+
+删除完成！
+```
+
+```
+👤 我想删除 build-linux-app 技能
+🤖 正在验证删除请求...
+
+验证结果：
+- 技能名称：build-linux-app
+- 分类：software
+
+⚠️ 此技能是 plumb-link 的核心技能，受保护无法删除。
+
+如需修改，请使用更新版本功能。
+```
+
 ---
 
-## 四、与 plug-lens 关系
+## 五、与 plug-lens 关系
 
 plumb-link 与 plug-lens 形成姊妹双生态：
 

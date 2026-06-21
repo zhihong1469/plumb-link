@@ -1,0 +1,69 @@
+{
+  "skill_name": "cross-compile-build",
+  "version": "1.0.0",
+
+  "toolchain": {
+    "default_prefix": "arm-linux-gnueabihf-",
+    "default_path": "/usr",
+    "cmake_file_template": "toolchain.cmake.in"
+  },
+
+  "build": {
+    "parallel_jobs": 0,
+    "default_build_type": "Release",
+    "supported_build_types": ["Debug", "Release", "RelWithDebInfo", "MinSizeRel"],
+    "default_cmake_flags": "-DCMAKE_BUILD_TYPE=Release",
+    "default_make_flags": "",
+    "clean_before_build": false
+  },
+
+  "install": {
+    "default_prefix": "/usr/local",
+    "use_destdir": true,
+    "create_dirs": true
+  },
+
+  "archive": {
+    "supported_formats": [".tar.gz", ".tar.bz2", ".tar.xz", ".zip", ".tgz"],
+    "auto_detect": true,
+    "extract_to_temp": true
+  },
+
+  "security": {
+    "enabled": false,
+    "require_confirmation": true,
+    "blocked_paths": ["/etc", "/usr", "/bin", "/sbin", "/lib", "/boot"],
+    "allowed_operations": ["build", "install"],
+    "max_install_size_mb": 1000
+  },
+
+  "logging": {
+    "level": "INFO",
+    "log_file": "cross_compile.log",
+    "verbose": false,
+    "show_commands": true
+  },
+
+  "toolchain_presets": {
+    "armv7": {
+      "prefix": "arm-linux-gnueabihf-",
+      "description": "ARMv7 Cortex-A (32-bit) with hardware float",
+      "cmake_flags": "-DCMAKE_SYSTEM_PROCESSOR=ARM -DCMAKE_SYSROOT=/opt/toolchains/arm-linux-gnueabihf"
+    },
+    "armv8": {
+      "prefix": "aarch64-linux-gnu-",
+      "description": "ARMv8 Cortex-A (64-bit)",
+      "cmake_flags": "-DCMAKE_SYSTEM_PROCESSOR=AARCH64 -DCMAKE_SYSROOT=/opt/toolchains/aarch64-linux-gnu"
+    },
+    "riscv32": {
+      "prefix": "riscv32-unknown-elf-",
+      "description": "RISC-V 32-bit",
+      "cmake_flags": "-DCMAKE_SYSTEM_PROCESSOR=RISCV"
+    },
+    "riscv64": {
+      "prefix": "riscv64-unknown-elf-",
+      "description": "RISC-V 64-bit",
+      "cmake_flags": "-DCMAKE_SYSTEM_PROCESSOR=RISCV64"
+    }
+  }
+}

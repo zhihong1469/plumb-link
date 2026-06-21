@@ -1,0 +1,94 @@
+{
+  "version": "1.2.0",
+  "description": "git-commit 技能配置文件 - 支持完整分支管理工作流",
+  "enabled": false,
+  "default_branch": "main",
+  "default_remote": "origin",
+  "auto_push": false,
+  "require_confirmation": true,
+  "gpg_sign": false,
+  "dry_run_by_default": false,
+  "commit_message": {
+    "template": "{type}({scope}): {subject}",
+    "types": [
+      "feat",
+      "fix",
+      "docs",
+      "style",
+      "refactor",
+      "test",
+      "chore"
+    ],
+    "type_descriptions": {
+      "feat": "新增功能",
+      "fix": "修复 bug",
+      "docs": "修改文档",
+      "style": "代码格式调整",
+      "refactor": "重构代码",
+      "test": "添加或修改测试",
+      "chore": "构建流程、依赖管理等杂项"
+    },
+    "require_type": true,
+    "require_scope": false,
+    "require_subject": true,
+    "subject_max_length": 50
+  },
+  "branch_workflow": {
+    "main_branches": ["main", "release/*"],
+    "feature_branch_prefix": "feature/",
+    "bugfix_branch_prefix": "bugfix/",
+    "hotfix_branch_prefix": "hotfix/",
+    "auto_create_feature": true,
+    "auto_merge_to_main": false,
+    "auto_delete_after_merge": false,
+    "merge_strategy": "merge",
+    "require_pull_before_merge": true,
+    "confirm_before_delete": true
+  },
+  "allowed_branches": [
+    "main",
+    "develop",
+    "release/*",
+    "feature/*",
+    "bugfix/*",
+    "hotfix/*"
+  ],
+  "protected_branches": [
+    "main",
+    "master",
+    "release/*"
+  ],
+  "file_patterns": {
+    "include": [],
+    "exclude": [
+      "*.log",
+      "*.tmp",
+      ".env",
+      "*.secret",
+      "*.key",
+      "*.pem"
+    ]
+  },
+  "branch_creation": {
+    "auto_create": true,
+    "create_if_not_exists": true,
+    "from_main_branch": true,
+    "pull_before_create": true
+  },
+  "merge_config": {
+    "target_branches": ["main", "release/*"],
+    "require_clean_working_tree": true,
+    "squash_merge": false,
+    "delete_source_after_merge": false
+  },
+  "security": {
+    "enabled": false,
+    "require_user_activation": true,
+    "activation_required_message": "此技能需要用户手动激活。请查看 CONFIG.md 配置文件并设置 security.enabled = true",
+    "last_activated_by": "",
+    "last_activated_time": "",
+    "auto_disable_after_hours": 0,
+    "allowed_operations": ["commit", "branch_create", "branch_switch", "pull", "merge", "push", "delete_branch"],
+    "blocked_operations": []
+  }
+}
